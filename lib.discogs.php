@@ -27,6 +27,7 @@ class Discogs implements Iterator
 	private $user_agent = false;
 
 	private $data = null;
+	private $command = null;
 	private $query = array();
 	private $index = null;
 	private $accessor = null;
@@ -59,6 +60,7 @@ class Discogs implements Iterator
 	function __clone()
 	{
 		$this->data = null;
+		$this->command = null;
 		$this->query = array();
 		$this->accessor = null;
 	}
@@ -73,6 +75,7 @@ class Discogs implements Iterator
 		$obj = clone $this;
 		$data =& $obj->data;
 
+		$obj->command = 'database/search';
 		$obj->query = array('q'=>$query,'type'=>'release','page'=>$page);
 		$obj->accessor = function($index, &$key=null)use(&$data){
 			assert('is_object($data)');
@@ -88,22 +91,37 @@ class Discogs implements Iterator
 	}
 
 	// }}}
+	// {{{ release
+
+	function release($id)
+	{
+		assert('is_numeric($id)');
+
+		$obj = clone $this;
+
+		$obj->command = "releases/$id";
+		$obj->updateData(null);
+		assert('is_object($obj->data)');
+		return $obj->data;
+	}
+
+	// }}}
 	// {{{ updateData
 
 	private function updateData($query,$page=null)
 	{
-		assert('is_array($query)');
+		assert('is_array($query) or is_null($query)');
 		assert('is_numeric($page) or is_null($page)');
 
-		if( $page ) $query['page'] = $page;
+		if( $page and $query ) $query['page'] = $page;
 
 		$this->index = 0;
 
 		$this->data = json_decode(file_get_contents(
-			sprintf('%s%s?%s',
+			sprintf('%s%s%s',
 				$this->root_url,
-				'database/search',
-				http_build_query($query)),
+				$this->command,
+				$query?'?'.http_build_query($query):''),
 			false,
 			stream_context_create(array('http'=>array(
 		    'method'=>'GET',
@@ -177,8 +195,12 @@ class Discogs implements Iterator
 $d = new Discogs("PlaieListeMusicPlayerDeamonClient/12.03 +https://github.com/moechofe/PlaieListe");
 
 $c=0;
-//foreach( $d->searchRelease("Stupeflip The Hypnoflip Invasion") as $id => $release )
-foreach( $d->searchRelease("The Mothers") as $id => $release )
+foreach( $d->searchRelease("Stupeflip The Hypnoflip Invasion") as $id => $release )
+//foreach( $d->searchRelease("The Mothers") as $id => $release )
 echo ++$c,': ',$id,PHP_EOL;
 var_dump($c);
+
+var_dump( $d->release('2754221') );
+
+
 //var_dump( $id, $release );
