@@ -11,9 +11,8 @@ Actually, ther is only two functions implemented:
 [search]: http://www.discogs.com/developers/resources/database/search-endpoint.html "Database/Search"
 
 Example:
----
-  $d = new Discogs("MyPersonalClient/0.1 +http://mypersonalclient.com");
-  foreach( $d->searchRelease("Zappa") as $id => $release )
-	  var_dump( $id );
-  var_dump( $d->release('2754221') );
----
+	$d = new Discogs("MyPersonalClient/0.1 +http://mypersonalclient.com");
+	foreach( $d->searchRelease("Zappa") as $id => $release )
+		var_dump( $id );
+	var_dump( $d->release('2754221') );
+
