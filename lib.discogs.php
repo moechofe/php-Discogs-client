@@ -18,6 +18,11 @@ use Iterator;
  * $d = new Discogs("MyPersonalClient/0.1 +http://mypersonalclient.com");
  * foreach( $d->searchRelease("Zappa") as $id => $release )
  *   var_dump( $id );
+ * ---
+ * Example: retrieve information about one release.
+ * ---
+ * var_dump( $d->release('2754221') );
+ * ---
  */
 class Discogs implements Iterator
 {
@@ -57,6 +62,9 @@ class Discogs implements Iterator
 		$this->user_agent = $user_agent;
 	}
 
+	/**
+	 * Internally used to avoid conflict with members.
+	 */
 	function __clone()
 	{
 		$this->data = null;
@@ -68,7 +76,14 @@ class Discogs implements Iterator
 	// }}}
 	// {{{ searchRelease
 
-	function searchRelease($query, $page=1)
+	/**
+	 * Return an Iterator used to retrieve all releases that match the query.
+	 * Params:
+	 *   string $query = The query.
+	 * Returns:
+	 *   Discogs = A Iterator to use with foreach().
+	 */
+	function searchRelease($query)
 	{
 		assert('is_string($query)');
 
@@ -76,7 +91,7 @@ class Discogs implements Iterator
 		$data =& $obj->data;
 
 		$obj->command = 'database/search';
-		$obj->query = array('q'=>$query,'type'=>'release','page'=>$page);
+		$obj->query = array('q'=>$query,'type'=>'release','page'=>1);
 		$obj->accessor = function($index, &$key=null)use(&$data){
 			assert('is_object($data)');
 			assert('is_array($data->results)');
@@ -93,6 +108,13 @@ class Discogs implements Iterator
 	// }}}
 	// {{{ release
 
+	/**
+	 * Return an object containing all informations about a release extracted from Discogs.com.
+	 * Params:
+	 *   numeric $id = The unique ID of the release (on Discogs).
+	 * Returns:
+	 *   object = All avaiables informatinos for this release. var_dump() it.
+	 */
 	function release($id)
 	{
 		assert('is_numeric($id)');
@@ -108,10 +130,23 @@ class Discogs implements Iterator
 	// }}}
 	// {{{ updateData
 
+	/**
+	 * Used internally to retrieve a new bunch of data from Discogs.com.
+	 * $this->command should be setted before calling this function.
+	 * Params:
+	 *   array $query = The GET parameters to pass to the API.
+	 *   null $query = No GET paramters will be sent.
+	 *   numeric $page = Used to retrieve a specific page instead of the first one.
+	 *   null $page = No pagination GET parameters will be sent.
+	 * Todo:
+	 *   - Manage connection errors.
+	 *   - Manage decode errors.
+	 */
 	private function updateData($query,$page=null)
 	{
 		assert('is_array($query) or is_null($query)');
 		assert('is_numeric($page) or is_null($page)');
+		assert('is_string($this->command)');
 
 		if( $page and $query ) $query['page'] = $page;
 
@@ -192,15 +227,3 @@ class Discogs implements Iterator
 	// }}}
 }
 
-$d = new Discogs("PlaieListeMusicPlayerDeamonClient/12.03 +https://github.com/moechofe/PlaieListe");
-
-$c=0;
-foreach( $d->searchRelease("Stupeflip The Hypnoflip Invasion") as $id => $release )
-//foreach( $d->searchRelease("The Mothers") as $id => $release )
-echo ++$c,': ',$id,PHP_EOL;
-var_dump($c);
-
-var_dump( $d->release('2754221') );
-
-
-//var_dump( $id, $release );
