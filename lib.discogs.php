@@ -7,7 +7,27 @@
  * See: http://www.discogs.com/developers/
  */
 namespace qad\discogs;
-use Iterator;
+use Iterator, RuntimeException;
+
+// {{{ RateLimitException
+
+class RateLimitException extends RuntimeException
+{
+	private $type;
+	public function getType() { return $this->type; }
+	private $reset;
+	public function getReset() { return $this->reset; }
+	function __construct(array $header)
+	{
+		foreach( $header as $h )
+			if( preg_match('/^X-RateLimit-Type: (\w+)$/',$h,$m) )
+				$this->type = $m[1];
+			elseif( preg_match('/^X-RateLimit-Reset: (\d+)$/',$h,$m) )
+				$this->reset = $m[1];
+	}
+}
+
+// }}}
 
 /**
  * Ask the Discogs API v2 to retrive it's precious contents.
@@ -32,6 +52,7 @@ class Discogs implements Iterator
 	private $user_agent = false;
 
 	private $data = null;
+	private $header = null;
 	private $command = null;
 	private $query = array();
 	private $index = null;
@@ -68,6 +89,7 @@ class Discogs implements Iterator
 	function __clone()
 	{
 		$this->data = null;
+		$this->header = null;
 		$this->command = null;
 		$this->query = array();
 		$this->accessor = null;
@@ -128,6 +150,35 @@ class Discogs implements Iterator
 	}
 
 	// }}}
+	// {{{ image
+
+	/**
+	 * Leech the image data from Discogs.com and return it to the client.
+	 * Take care of sending the User-Agent defined in __construct().
+	 * Params:
+	 *   string $uri = The image URL.
+	 */
+	function image($uri, &$header=null)
+	{
+		assert('is_string($uri)');
+
+		$header = array();
+
+		$obj = clone $this;
+
+		$obj->command = '';
+		$obj->root_url = $uri;
+		$obj->updateData(null,null,true);
+		assert('is_string($obj->data)');
+
+		foreach( $obj->header as $h )
+			if( preg_match('/^(?:Content-Type|Expires|Cache-Control|Content-Length|Date):/i',$h) )
+				array_push($header,$h);
+
+		return $obj->data;
+	}
+
+	// }}}
 	// {{{ updateData
 
 	/**
@@ -138,11 +189,12 @@ class Discogs implements Iterator
 	 *   null $query = No GET paramters will be sent.
 	 *   numeric $page = Used to retrieve a specific page instead of the first one.
 	 *   null $page = No pagination GET parameters will be sent.
+	 *   bool $raw = Indiquate to decode JSON or return the raw data.
 	 * Todo:
 	 *   - Manage connection errors.
 	 *   - Manage decode errors.
 	 */
-	private function updateData($query,$page=null)
+	private function updateData($query,$page=null,$raw=false)
 	{
 		assert('is_array($query) or is_null($query)');
 		assert('is_numeric($page) or is_null($page)');
@@ -152,7 +204,7 @@ class Discogs implements Iterator
 
 		$this->index = 0;
 
-		$this->data = json_decode(file_get_contents(
+		$this->data = file_get_contents(
 			sprintf('%s%s%s',
 				$this->root_url,
 				$this->command,
@@ -160,7 +212,15 @@ class Discogs implements Iterator
 			false,
 			stream_context_create(array('http'=>array(
 		    'method'=>'GET',
-		    'header'=>sprintf('User-Agent: %s\r\n',$this->user_agent))))));
+				'header'=>sprintf('User-Agent: %s\r\n',$this->user_agent)))));
+
+		foreach( $http_response_header as $h )
+			if( 'X-RateLimit-Limit: 0' == $h )
+				throw new RateLimitException($http_response_header);
+
+		$this->header = $http_response_header;
+
+		if( ! $raw ) $this->data = json_decode($this->data);
 	}
 
 	// }}}
@@ -226,4 +286,9 @@ class Discogs implements Iterator
 
 	// }}}
 }
-
+/*
+  $d = new Discogs("MyPersonalClient/0.1 +http://mypersonalclient.com");
+	//var_dump( $d->release('2754221')->images );
+	$d->image('http://api.discogs.com/image/R-2754221-1299524356.jpeg',$header);
+	var_dump($header);
+ */
